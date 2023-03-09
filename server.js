@@ -7,10 +7,11 @@ const http = require("http");
 
 /////////////////////////
 //環境設定
-const url = process.env.GAS_API_URL;
-const tokenchannel = process.env.TOKEN_CHANNEL;
-const sheetName = process.env.SHEET_NAME;
-
+//APIキーなどの設定読み込み
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+const GAS_API_URL = process.env.GAS_API_URL;
+const ANNOUNCE_CHANNEL = process.env.TOKEN_CHANNEL;
+const ISSUE_TOKEN_SHEET = process.env.SHEET_NAME;
 //タイムゾーンを日本標準時に変更するためのオプション（海外サーバーで実行されたとき用）
 const timezoneoptions = {
   timeZone: 'Asia/Tokyo',
@@ -30,7 +31,7 @@ class PostGas {
     //GASへポストするデータ
     this.data =  {
       action: "",
-      sheetName: sheetName,
+      sheetName: ISSUE_TOKEN_SHEET, //トークン発行ならこのシート、他のシートにもアップロードするなら要検討
       rows: []
     }
     this.channel = channel; //トークンが発行されたことをお知らせするチャンネル
@@ -41,65 +42,70 @@ class PostGas {
     this.data.rows.push(data);
   }
   postAxios(resprompt,errprompt){
-    axios.post(url, this.data)
+    axios.post(GAS_API_URL, this.data)
       .then(response => {
-      console.log('POSTリクエストが成功しました。');
-      this.data.rows.map((user) => {
-      //<@!${user.id}>でトークン発行対象者をお知らせチャンネルでメンション
-        this.channel.send(`<@!${user.userID}>(id:${user.userID})さん${resprompt}\nmessageID: ${user.messageID}`);
-      });
+        console.log('POSTリクエストが成功しました。');
+        this.channel.send(resprompt);
       })
       .catch(error => {
-      console.error('POSTリクエストが失敗しました。');
-      this.message.reply(errprompt);
+        console.error('POSTリクエストが失敗しました。');
+        this.message.reply(errprompt);
     });
   }
   //トークンを発行するメソッド
   insertGas(){
     this.data.action = "insert";
-    const resprompt = `さんにトークンを発行します`;
-    const errprompt = `トークンの発行に失敗しました`;
+    let resprompt = ``;
+    this.data.rows.map((user)=>{
+      resprompt = `${resprompt}<@!${user.userID}>さん\n`;
+    });
+    resprompt = `${resprompt}${this.data.rows[0].issue}枚のMLTTが発行されました`;
+    const errprompt = `<@${this.data.rows[0].issuerID}>MLTTの発行に失敗しました`;
     this.postAxios(resprompt,errprompt);
   }
   //トークン発行をキャンセルするメソッド
   deleteGas(){
     this.data.action = "delete";
-    const resprompt = `さん、ごめんなさい。さっきのトークン発行はミスでした。`;
-    const errprompt = `トークンの発行の削除に失敗しました`;
+    let resprompt = ``;
+    this.data.rows.map((user)=>{
+      resprompt = `${resprompt}<@!${user.userID}>さん\n`;
+    });
+    resprompt = `さっきのMLTT発行は取り消されました。`;
+    const errprompt = `<@${this.data.rows[0].issuerID}>MLTT発行の削除に失敗しました`;
     this.postAxios(resprompt,errprompt);
   }
 }
 
 //////////////////////////////////
-
+//ログイン状態の設定
 client.on("ready", () => {
   console.log(`Bot準備完了！${client.user.tag} でログインしています。`);
   client.user.setPresence({ activity: { name: '投稿チェック' } });
 });
+
+///////////////////////////////
+//メッセージが投稿されたときの反応
 client.on("messageCreate", async message => {
   //メッセージ投稿者がBotなら反応しない
   if (message.author.id == client.user.id || message.author.bot) return;
   //自分がメンションされたら反応
+  //メンションによるトークンの発行
   if (message.mentions.has(client.user)) {
-    
-    //メンションによるトークンの発行
-    const channel = client.channels.cache.get(tokenchannel);
+    const channel = client.channels.cache.get(ANNOUNCE_CHANNEL);
     const postGas = new PostGas(channel,message);
+    //正規表現で発行枚数を取得
+    const regex = /(\d+)枚/; // 「枚」の直前の数字の1回以上の繰り返しを表す正規表現
+    const matches = message.content.match(regex);
+    const integerPart = matches ? parseInt(matches[0]) : null;//最初に検出された数字
+    let issue = integerPart || 1;//発行枚数が検出されなければ１
+    //メッセージが送信された日時を日本標準時に変更
+    const now = new Date();
+    const date = new Intl.DateTimeFormat('ja-JP', timezoneoptions).format(now);
+        
     //メンションされているユーザーごとに実行
     message.mentions.users.map((user) =>{
       //メンションされているのがbot以外なら実行
       if(user.id != client.user.id){
-        //正規表現で発行枚数を取得
-        const regex = /(\d+)枚/; // 「枚」の直前の数字の1回以上の繰り返しを表す正規表現
-        const matches = message.content.match(regex);
-        //最初に検出された数字
-        const integerPart = matches ? parseInt(matches[0]) : null;
-        //発行枚数が検出されなければ１
-        let issue = integerPart || 1;
-        
-        //メッセージが送信された日時を日本標準時に変更
-        const now = new Date();
-        const date = new Intl.DateTimeFormat('ja-JP', timezoneoptions).format(now);
         //GASへ送信するデータ形式の作成
         let issuedata = {
           messageID: message.id,
@@ -118,9 +124,10 @@ client.on("messageCreate", async message => {
   }//メンションでの反応はここまで  
 });
 
-client.login(process.env.DISCORD_BOT_TOKEN);
+//BotのDiscordへのログイン
+client.login(DISCORD_BOT_TOKEN);
 
-//GASからのPOSTリクエストを受け取る用
+//Glitchを寝かせないため、GASからのPOSTリクエストを受け取る
 http
   .createServer( (request, response) => {
     console.log('post from gas')
@@ -138,11 +145,3 @@ http
 //   reaction.message.channel.send(`${message.guild} で ${user.tag} が ${member.tag} に ${reaction.emoji.name} をリアクションしました。\n
 //   messageid: ${message.id}`);
 // });
-
- /*
- //同じ種類のリアクションが何個あるか数える
- client.on('messageReactionAdd', async (reaction, user) => {
-    console.log(reaction.count);
-});
-*/
-
