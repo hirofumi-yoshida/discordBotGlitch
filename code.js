@@ -61,7 +61,7 @@ class PostGas {
     this.data.rows.map((user)=>{
       resprompt = `${resprompt}<@!${user.userID}>さん\n`;
     });
-    resprompt = `${this.message.author.tag}さんから${resprompt}${this.data.rows[0].issue}枚のMLTTの発行が申請されました`;
+    resprompt = `${resprompt}${this.message.author.tag}さんから${this.data.rows[0].issue}枚のMLTTの発行が申請されました`;
     const errprompt = `<@${this.data.rows[0].issuerID}>MLTTの発行申請に失敗しました`;
     this.postAxios(resprompt,errprompt);
   }
@@ -83,6 +83,7 @@ class PostGas {
 client.on("ready", () => {
   console.log(`Bot準備完了！${client.user.tag} でログインしています。`);
   client.user.setPresence({ activity: { name: '投稿チェック' } });
+  createCommand(client);
 });
 
 ///////////////////////////////
@@ -94,7 +95,7 @@ client.on("messageCreate", async message => {
   /////////////////////////////////
   //メンションによるトークンの発行
   /////////////////////////////////
-  if (message.mentions.has(client.user)) {//自分がメンションされたら反応
+  if (message.mentions.has(client.user) && !message.mentions.everyone) {//自分がメンションされ、なおかつeveryoneやhereでなければ反応
     process.env.TOKEN_CHANNEL = ANNOUNCE_CHANNEL || message.channel;//お知らせチャンネルが設定されていなければ返信で対応
     const channel = client.channels.cache.get(ANNOUNCE_CHANNEL);
     const postGas = new PostGas(channel,message);
@@ -127,8 +128,50 @@ client.on("messageCreate", async message => {
     postGas.insertGas();
   }//メンションでの反応はここまで
   
-  
 });
+
+const createCommand = (client)=>{
+  // スラッシュコマンドを定義する
+  const data = {
+    name: 'checktokens',
+    description: '現在申請されているトークンの確認を行います'/*,
+    options:[{
+       name: "me",
+       description: "自分宛てに発行申請されているトークン",
+      },{
+       name: "all",
+       description: "全員の発行申請されているトークン"
+      }]*/
+  };
+  // スラッシュコマンドを登録する
+  client.application.commands.create(data)
+    .then(command => console.log(command))
+    .catch(console.error);
+  console.log("スラッシュコマンドの登録が完了しました");
+}
+
+// スラッシュコマンドが実行されたときの処理を定義
+client.on('interactionCreate', async interaction => {
+  //トークンの申請数を確認する
+  if (interaction.isCommand() && interaction.commandName === 'checktokens') {
+    const data = {action: 'checktokens',target: 'all'}
+    try {
+      const response = await axios.get(GAS_API_URL);
+      const result = Object.entries(response.data);
+      let message = "";
+      result.forEach(data=>{
+        message += `${data[0]}さん、${data[1]}枚\n`;
+      });
+      //ephemeral:trueにより、コマンド実行者にしか見えない一時的なメッセージとして送信
+      await interaction.reply({content: message, ephemeral: true });
+    } catch (error) {
+      console.error(error);
+      await interaction.reply({content:'データの取得に失敗しました',ephemeral: true});
+    }
+  }
+});
+
+
 
 //BotのDiscordへのログイン
 client.login(DISCORD_BOT_TOKEN);
