@@ -5,7 +5,11 @@ const http = require("http");
 http
   .createServer( (request, response) => {
     //console.log('post from gas')
-    response.end("Discord bot is active now.");
+    response.setHeader('Content-Type', 'application/json; charset=utf-8');
+  response.statusCode = 200;
+  const responseBody = {message: 'API is active now.'};
+  response.write(JSON.stringify(responseBody));
+  response.end();
   })
   .listen(3000);
 
