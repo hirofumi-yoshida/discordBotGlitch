@@ -11,7 +11,7 @@ const axios = require(`axios`);
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const GAS_API_URL = process.env.GAS_API_URL;
 const ANNOUNCE_CHANNEL = process.env.ANNOUNCE_CHANNEL;
-const ISSUE_TOKEN_SHEET = process.env.ISSUE_TOKEN_SHEET;
+const ISSUE_TOKEN_SHEET = "issue-token";
 //タイムゾーンを日本標準時に変更するためのオプション（海外サーバーで実行されたとき用）
 const timezoneoptions = {
   timeZone: 'Asia/Tokyo',
