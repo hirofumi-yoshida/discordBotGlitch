@@ -216,7 +216,6 @@ client.on('interactionCreate', async interaction => {
     const time = interaction.options.getInteger('time')||1;//会議時間が設定されていない場合は1を設定
     const content = interaction.options.getString('content');
     
-    
     // YYYYMMDD形式とHHMM形式をチェック
     if (!/^\d{8}$/.test(date) || !/^\d{4}$/.test(startTime)) {
         console.error('Invalid date or start-time format');
@@ -248,7 +247,8 @@ client.on('interactionCreate', async interaction => {
     const formattedStartTime = `${startTime.slice(0, 2)}時${startTime.slice(2, 4)}分`;
 
     // メッセージをフォーマットします
-    const message = `${MEETING_TITLE}\n${formattedDate}\n${formattedStartTime}開始\n${time}時間\n\n${content}`;
+    const message = `${MEETING_TITLE}\n${formattedDate}\n${formattedStartTime}開始\n予定時間${time}時間\n\n${content}\nミーティング設定者\n${interaction.user.tag}\n${interaction.user.id}`;
+
 
     // メッセージを送信し、そのレスポンスを取得します
     let sentMessage = await interaction.reply({ content: message, fetchReply: true });
@@ -307,8 +307,9 @@ client.on('messageReactionAdd', async (reaction, user) => {
     const duration = Number(durationParts[1]);
 
     // 開始時間と終了時間を計算する
-    const startTime = new Date(year, month - 1, day, hour, minute - 5);
-    const endTime = new Date(year, month - 1, day, hour + duration, minute - 10);
+    const startTime = new Date(year, month - 1, day, hour, minute - 30);
+    const endTime = new Date(year, month - 1, day, hour + duration, minute + 30);
+
     // サーバーの現在時刻を日本時間に変更
     const nowString = new Intl.DateTimeFormat('ja-JP', timezoneoptions).format(new Date());
     const nowParts = nowString.match(/(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
@@ -316,21 +317,25 @@ client.on('messageReactionAdd', async (reaction, user) => {
 
     // 現在時刻が許可される時間範囲内であるかチェックする
     if (now >= startTime && now <= endTime) {
-      console.log(`${user.username} has reacted to the meeting message!`);
+      const regex = /ミーティング設定者\n([^\n]+)\n(\d+)/;
+      const matches = message.content.match(regex);
+      const username = matches[1];
+      const userId = matches[2];
+      console.log(`${user.username} has reacted to the meeting message!${username}${userId}`);
       let issuedata = {
           messageID: message.id,
           date: nowString,
           userID: user.id,
           userName: user.tag,
-          issuerID: message.author.id,
-          issuerName: message.author.tag,
+          issuerID: userId,
+          issuerName: username,
           issue: 1};
         //GASへ送信するデータを追加
         postGas.pushdata(issuedata);
       //GASへデータ送信
       postGas.insertGas();
       // リアクションが付与されたメッセージのチャンネルにメッセージを送信
-      reaction.message.channel.send(`User ${user.username} has reacted with ${reaction.emoji.name}`);
+      //reaction.message.channel.send(`User ${user.username} has reacted with ${reaction.emoji.name}`);
     }
   }
 });
