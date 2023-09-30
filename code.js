@@ -249,7 +249,6 @@ client.on('interactionCreate', async interaction => {
     // メッセージをフォーマットします
     const message = `${MEETING_TITLE}\n${formattedDate}\n${formattedStartTime}開始\n予定時間${time}時間\n\n${content}\nミーティング設定者\n${interaction.user.tag}\n${interaction.user.id}`;
 
-
     // メッセージを送信し、そのレスポンスを取得します
     let sentMessage = await interaction.reply({ content: message, fetchReply: true });
     
@@ -309,7 +308,6 @@ client.on('messageReactionAdd', async (reaction, user) => {
     // 開始時間と終了時間を計算する
     const startTime = new Date(year, month - 1, day, hour, minute - 30);
     const endTime = new Date(year, month - 1, day, hour + duration, minute + 30);
-
     // サーバーの現在時刻を日本時間に変更
     const nowString = new Intl.DateTimeFormat('ja-JP', timezoneoptions).format(new Date());
     const nowParts = nowString.match(/(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
@@ -329,7 +327,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
           userName: user.tag,
           issuerID: userId,
           issuerName: username,
-          issue: 1};
+          issue: 3};
         //GASへ送信するデータを追加
         postGas.pushdata(issuedata);
       //GASへデータ送信
